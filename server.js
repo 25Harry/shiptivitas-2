@@ -125,9 +125,6 @@ app.put('/api/v1/clients/:id', (req, res) => {
   let clients = db.prepare('select * from clients').all();
   const client = clients.find(client => client.id === id);
 
-  return res.status(200).send(clients);
-});
-
 app.listen(3001);
 console.log('app running on port ', 3001);
 
