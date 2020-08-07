@@ -125,12 +125,72 @@ app.put('/api/v1/clients/:id', (req, res) => {
   let clients = db.prepare('select * from clients').all();
   const client = clients.find(client => client.id === id);
 
-  /* ---------- Update code below ----------*/
-
-
-
   return res.status(200).send(clients);
 });
 
 app.listen(3001);
 console.log('app running on port ', 3001);
+
+if (status) {
+    // status can only be either 'backlog' | 'in-progress' | 'complete'
+    if (status !== 'backlog' && status !== 'in-progress' && status !== 'complete') {
+      return res.status(400).send({
+        'message': 'Invalid status provided.',
+        'long_message': 'Status can only be one of the following: [backlog | in-progress | complete].',
+      });
+    }
+  }
+  const newStatus = status;
+  const oldStatus = client.status;
+  const oldPriority = client.priority;
+
+  // We have 3 possible use cases:
+  // 1. oldStatus == newStatus & oldPriority == priority, do nothing
+  // 2. oldStatus == newStatus & oldPriority != priority, reorder clients with same status
+  // 3. oldStatus != newStatus, reorder clients in oldStatus and newStatus. If priority is provided, rearranged accordingly
+
+  if (oldStatus === newStatus && priority && oldPriority !== priority) {
+    const clientsWithDifferentStatus = clients.filter(client => client.status !== newStatus);
+    client.priority = priority - 0.5;
+    const clientsWithSameStatus = clients.filter(client => client.status === newStatus)
+      .sort((a, b) => a.priority - b.priority)
+      .map((client, index) => ({
+        ...client,
+        priority: index + 1,
+      }));
+    clients = [
+      ...clientsWithDifferentStatus,
+      ...clientsWithSameStatus,
+    ];
+  } else if (oldStatus !== newStatus) {
+    client.status = newStatus;
+    client.priority = priority ? priority - 0.5 : Number.MAX_SAFE_INTEGER;
+    const clientsWithDifferentStatus = clients.filter(client => client.status !== oldStatus && client.status !== newStatus);
+    const clientsWithOldStatus = clients.filter(client => client.status === oldStatus)
+      .sort((a, b) => a.priority - b.priority)
+      .map((client, index) => ({
+        ...client,
+        priority: index + 1,
+      }));
+    const clientsWithNewStatus = clients.filter(client => client.status === newStatus)
+      .sort((a, b) => a.priority - b.priority)
+      .map((client, index) => ({
+        ...client,
+        priority: index + 1,
+      }));
+    client.priority = clientsWithNewStatus.length;
+    clients = [
+      ...clientsWithDifferentStatus,
+      ...clientsWithOldStatus,
+      ...clientsWithNewStatus,
+    ];
+  }
+
+  // Updating the entire rows on the table
+  const updateStmt = db.prepare('update clients set status = ?, priority = ? where id = ?');
+  clients.forEach(client => {
+    updateStmt.run(client.status, client.priority, client.id);
+  });
+ 
+   return res.status(200).send(clients);
+ });
