@@ -162,6 +162,7 @@ if (status) {
       ...clientsWithDifferentStatus,
       ...clientsWithSameStatus,
     ];
+    
   } else if (oldStatus !== newStatus) {
     client.status = newStatus;
     client.priority = priority ? priority - 0.5 : Number.MAX_SAFE_INTEGER;
